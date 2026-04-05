@@ -1,6 +1,6 @@
 import { Client } from "@notionhq/client";
 import FeedClient from "./FeedClient";
-
+export const revalidate = 0;
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const databaseId = process.env.NOTION_DATABASE_ID as string;
 

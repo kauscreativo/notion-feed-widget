@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 type Post = {
@@ -11,15 +11,22 @@ type Post = {
   formato: string;
   estado: string;
   copy: string;
+  fecha: string;
   pinned: boolean;
 };
 
 export default function FeedClient({ posts }: { posts: Post[] }) {
   const [filter, setFilter] = useState("todos");
   const [showBio, setShowBio] = useState(true);
+  const [showOptions, setShowOptions] = useState(false);
+  const [vista, setVista] = useState<"feed" | "organizar">("feed");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [slideIndex, setSlideIndex] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const [dragOrder, setDragOrder] = useState<Post[]>([]);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const dragOverId = useRef<string | null>(null);
   const router = useRouter();
 
   const filtered = posts.filter((p) => {
@@ -28,14 +35,53 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
     return true;
   });
 
+  const feedPosts = filtered;
+  const organizePosts = dragOrder.length > 0 ? dragOrder : [...filtered];
+
   function handleRefresh() {
     startTransition(() => { router.refresh(); });
   }
 
-  function openModal(post: Post) {
-    setSelectedPost(post);
-    setSlideIndex(0);
+  function formatFecha(fecha: string) {
+    if (!fecha) return "";
+    const d = new Date(fecha + "T12:00:00");
+    return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
   }
+
+  function switchToOrganize() {
+    setDragOrder([...filtered]);
+    setVista("organizar");
+    setShowOptions(false);
+  }
+
+  function switchToFeed() {
+    setVista("feed");
+    setShowOptions(false);
+  }
+
+  // Drag handlers
+  function onDragStart(id: string) {
+    setDraggedId(id);
+  }
+
+  function onDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault();
+    dragOverId.current = id;
+  }
+
+  function onDrop() {
+    if (!draggedId || !dragOverId.current || draggedId === dragOverId.current) return;
+    const newOrder = [...organizePosts];
+    const fromIdx = newOrder.findIndex(p => p.id === draggedId);
+    const toIdx = newOrder.findIndex(p => p.id === dragOverId.current);
+    const [moved] = newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, moved);
+    setDragOrder(newOrder);
+    setDraggedId(null);
+    dragOverId.current = null;
+  }
+
+  const currentPosts = vista === "feed" ? feedPosts : organizePosts;
 
   const slides = selectedPost
     ? selectedPost.contenido.length > 0
@@ -45,16 +91,9 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
 
   return (
     <>
-      {/* BIO TOGGLE */}
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 16px 0" }}>
-        <button onClick={() => setShowBio(!showBio)} style={{ background: "none", border: "none", fontSize: "11px", color: "#888", cursor: "pointer", textDecoration: "underline" }}>
-          {showBio ? "Ocultar bio" : "Mostrar bio"}
-        </button>
-      </div>
-
       {/* BIO */}
       {showBio && (
-        <div style={{ padding: "10px 16px 12px" }}>
+        <div style={{ padding: "16px 16px 10px" }}>
           <p style={{ fontWeight: 700, fontSize: "15px", margin: "0 0 2px" }}>@rey_de_copas</p>
           <p style={{ fontWeight: 600, fontSize: "13px", margin: "0 0 2px", color: "#111" }}>Rey de Copas · Bar</p>
           <p style={{ fontSize: "13px", color: "#333", margin: 0, lineHeight: 1.4 }}>Calendario de contenido ✦ Feed preview</p>
@@ -71,24 +110,81 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
         </div>
       </div>
 
-      {/* FILTROS */}
-      <div style={{ display: "flex", gap: "8px", padding: "12px 16px", borderBottom: "1px solid #dbdbdb", alignItems: "center" }}>
-        {[{ key: "todos", label: "Todos" }, { key: "publicado", label: "Publicados" }].map((f) => (
-          <button key={f.key} onClick={() => setFilter(f.key)} style={{ padding: "5px 12px", borderRadius: "99px", border: "1px solid", borderColor: filter === f.key ? "#111" : "#dbdbdb", background: filter === f.key ? "#111" : "transparent", color: filter === f.key ? "#fff" : "#333", fontSize: "12px", cursor: "pointer", fontWeight: filter === f.key ? 600 : 400 }}>
-            {f.label}
-          </button>
-        ))}
-        <button onClick={handleRefresh} disabled={isPending} style={{ marginLeft: "auto", padding: "5px 12px", borderRadius: "99px", border: "1px solid #dbdbdb", background: "transparent", color: isPending ? "#bbb" : "#333", fontSize: "12px", cursor: isPending ? "wait" : "pointer" }}>
-          {isPending ? "Actualizando..." : "↻ Refresh"}
+      {/* BARRA DE CONTROLES */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", borderBottom: "1px solid #dbdbdb", position: "relative" }}>
+
+        {/* Vista buttons */}
+        <button onClick={switchToFeed} style={{ padding: "5px 12px", borderRadius: "99px", border: "1px solid", borderColor: vista === "feed" ? "#111" : "#dbdbdb", background: vista === "feed" ? "#111" : "transparent", color: vista === "feed" ? "#fff" : "#333", fontSize: "12px", cursor: "pointer", fontWeight: vista === "feed" ? 600 : 400 }}>
+          Feed
         </button>
+        <button onClick={switchToOrganize} style={{ padding: "5px 12px", borderRadius: "99px", border: "1px solid", borderColor: vista === "organizar" ? "#111" : "#dbdbdb", background: vista === "organizar" ? "#111" : "transparent", color: vista === "organizar" ? "#fff" : "#333", fontSize: "12px", cursor: "pointer", fontWeight: vista === "organizar" ? 600 : 400, display: "flex", alignItems: "center", gap: "4px" }}>
+          ✥ Organizar
+        </button>
+
+        <div style={{ marginLeft: "auto", display: "flex", gap: "6px", alignItems: "center" }}>
+          {/* Refresh */}
+          <button onClick={handleRefresh} disabled={isPending} title="Actualizar" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid #dbdbdb", background: "transparent", cursor: isPending ? "wait" : "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", color: isPending ? "#bbb" : "#333" }}>
+            ↻
+          </button>
+
+          {/* Opciones */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShowOptions(!showOptions)} title="Opciones" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid #dbdbdb", background: "transparent", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", color: "#333" }}>
+              ⋯
+            </button>
+
+            {showOptions && (
+              <div style={{ position: "absolute", right: 0, top: "36px", background: "#fff", border: "1px solid #dbdbdb", borderRadius: "12px", padding: "8px 0", minWidth: "180px", zIndex: 100, boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}>
+                <div style={{ padding: "6px 16px", fontSize: "13px", color: "#111", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                  onClick={() => { setShowBio(!showBio); setShowOptions(false); }}>
+                  {showBio ? "Ocultar bio" : "Mostrar bio"}
+                </div>
+                <div style={{ borderTop: "1px solid #f0f0f0", margin: "4px 0" }} />
+                <div style={{ padding: "4px 16px", fontSize: "12px", color: "#888" }}>Filtrar por</div>
+                {[{ key: "todos", label: "Todos" }, { key: "publicado", label: "Publicados" }].map((f) => (
+                  <div key={f.key} onClick={() => { setFilter(f.key); setShowOptions(false); }}
+                    style={{ padding: "6px 16px", fontSize: "13px", cursor: "pointer", color: filter === f.key ? "#111" : "#555", fontWeight: filter === f.key ? 600 : 400, display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: filter === f.key ? "#111" : "transparent", border: "1px solid #ccc", display: "inline-block" }} />
+                    {f.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div style={{ padding: "8px 16px", fontSize: "11px", color: "#888" }}>{filtered.length} posts</div>
+      {/* Aviso modo organizar */}
+      {vista === "organizar" && (
+        <div style={{ padding: "8px 16px", background: "#fffbe6", borderBottom: "1px solid #f5e68a", fontSize: "12px", color: "#8a6d00", display: "flex", alignItems: "center", gap: "6px" }}>
+          ✥ Arrastrá los posts para reorganizar el feed
+        </div>
+      )}
+
+      <div style={{ padding: "6px 16px", fontSize: "11px", color: "#888" }}>{currentPosts.length} posts</div>
 
       {/* GRID */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "2px" }}>
-        {filtered.map((post) => (
-          <div key={post.id} onClick={() => openModal(post)} style={{ aspectRatio: "4/5", position: "relative", overflow: "hidden", background: "#f0f0f0", cursor: "pointer" }}>
+        {currentPosts.map((post) => (
+          <div
+            key={post.id}
+            draggable={vista === "organizar"}
+            onDragStart={() => onDragStart(post.id)}
+            onDragOver={(e) => onDragOver(e, post.id)}
+            onDrop={onDrop}
+            onMouseEnter={() => setHoveredId(post.id)}
+            onMouseLeave={() => setHoveredId(null)}
+            onClick={() => vista === "feed" && (setSelectedPost(post), setSlideIndex(0))}
+            style={{
+              aspectRatio: "4/5",
+              position: "relative",
+              overflow: "hidden",
+              background: "#f0f0f0",
+              cursor: vista === "organizar" ? "grab" : "pointer",
+              opacity: draggedId === post.id ? 0.4 : 1,
+              transition: "opacity 0.15s",
+            }}
+          >
             {post.imgUrl ? (
               <img src={post.imgUrl} alt={post.nombre} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             ) : (
@@ -96,51 +192,63 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
               </div>
             )}
+
+            {/* Hover overlay */}
+            {hoveredId === post.id && vista === "feed" && (
+              <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "8px" }}>
+                <p style={{ color: "white", fontSize: "11px", fontWeight: 600, margin: "0 0 2px", lineHeight: 1.3 }}>{post.nombre}</p>
+                {post.fecha && <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "10px", margin: 0 }}>{formatFecha(post.fecha)}</p>}
+              </div>
+            )}
+
+            {/* Badges */}
             {post.pinned && <div style={{ position: "absolute", top: "5px", left: "5px" }}><svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg></div>}
             {post.formato === "Reel/Tiktok" && <div style={{ position: "absolute", top: "5px", right: "5px" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21"/></svg></div>}
             {post.formato === "Carrusel" && <div style={{ position: "absolute", top: "5px", right: "5px" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="6" width="5" height="12" rx="1"/><rect x="9" y="3" width="6" height="18" rx="1"/><rect x="17" y="6" width="5" height="12" rx="1"/></svg></div>}
+
+            {/* Drag handle */}
+            {vista === "organizar" && (
+              <div style={{ position: "absolute", top: "5px", left: "5px", background: "rgba(0,0,0,0.5)", borderRadius: "4px", padding: "2px 4px" }}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="white"><circle cx="2" cy="2" r="1"/><circle cx="8" cy="2" r="1"/><circle cx="2" cy="5" r="1"/><circle cx="8" cy="5" r="1"/><circle cx="2" cy="8" r="1"/><circle cx="8" cy="8" r="1"/></svg>
+              </div>
+            )}
           </div>
         ))}
       </div>
 
       {/* MODAL */}
       {selectedPost && (
-        <div onClick={() => setSelectedPost(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: "20px" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: "12px", width: "min(400px, 95vw)", overflow: "hidden", position: "relative" }}>
+        <div onClick={() => setSelectedPost(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: "16px" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: "12px", width: "min(380px, 95vw)", overflow: "hidden", maxHeight: "90vh", overflowY: "auto" }}>
 
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid #dbdbdb" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid #dbdbdb", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "#111", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <span style={{ color: "white", fontSize: "10px", fontWeight: 700 }}>RC</span>
                 </div>
-                <span style={{ fontSize: "13px", fontWeight: 600 }}>rey_de_copas</span>
+                <div>
+                  <p style={{ fontSize: "13px", fontWeight: 600, margin: 0 }}>rey_de_copas</p>
+                  {selectedPost.fecha && <p style={{ fontSize: "11px", color: "#888", margin: 0 }}>{formatFecha(selectedPost.fecha)}</p>}
+                </div>
               </div>
-              <button onClick={() => setSelectedPost(null)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#333", lineHeight: 1 }}>×</button>
+              <button onClick={() => setSelectedPost(null)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#333" }}>×</button>
             </div>
 
-            {/* Imagen / Slide */}
-            <div style={{ position: "relative" }}>
+            {/* Slides */}
+            <div style={{ position: "relative", background: "#000" }}>
               {slides.length > 0 ? (
                 <img src={slides[slideIndex]} alt={selectedPost.nombre} style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", display: "block" }} />
               ) : (
-                <div style={{ width: "100%", aspectRatio: "4/5", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "#ccc", fontSize: "13px" }}>Sin imagen</span>
+                <div style={{ width: "100%", aspectRatio: "4/5", background: "#111", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "#555", fontSize: "13px" }}>Sin imagen</span>
                 </div>
               )}
-
-              {/* Flechas carrusel */}
               {slides.length > 1 && (
                 <>
-                  <button onClick={() => setSlideIndex(i => Math.max(0, i - 1))} disabled={slideIndex === 0}
-                    style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.85)", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", opacity: slideIndex === 0 ? 0.3 : 1 }}>‹</button>
-                  <button onClick={() => setSlideIndex(i => Math.min(slides.length - 1, i + 1))} disabled={slideIndex === slides.length - 1}
-                    style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.85)", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", opacity: slideIndex === slides.length - 1 ? 0.3 : 1 }}>›</button>
-                  {/* Dots */}
+                  <button onClick={() => setSlideIndex(i => Math.max(0, i - 1))} disabled={slideIndex === 0} style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.85)", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "16px", opacity: slideIndex === 0 ? 0.3 : 1 }}>‹</button>
+                  <button onClick={() => setSlideIndex(i => Math.min(slides.length - 1, i + 1))} disabled={slideIndex === slides.length - 1} style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.85)", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "16px", opacity: slideIndex === slides.length - 1 ? 0.3 : 1 }}>›</button>
                   <div style={{ position: "absolute", bottom: "8px", left: 0, right: 0, display: "flex", justifyContent: "center", gap: "4px" }}>
-                    {slides.map((_, i) => (
-                      <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: i === slideIndex ? "#fff" : "rgba(255,255,255,0.5)" }} />
-                    ))}
+                    {slides.map((_, i) => <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: i === slideIndex ? "#fff" : "rgba(255,255,255,0.5)" }} />)}
                   </div>
                 </>
               )}
@@ -153,12 +261,9 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
                 {selectedPost.estado && <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "99px", border: "1px solid #dbdbdb", color: "#555" }}>{selectedPost.estado}</span>}
               </div>
               <p style={{ fontSize: "13px", fontWeight: 600, color: "#111", margin: "0 0 6px" }}>{selectedPost.nombre}</p>
-              {selectedPost.copy && (
-                <p style={{ fontSize: "13px", color: "#333", margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{selectedPost.copy}</p>
-              )}
+              {selectedPost.copy && <p style={{ fontSize: "13px", color: "#333", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{selectedPost.copy}</p>}
             </div>
 
-            {/* Navegación entre posts */}
             <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 14px 14px", borderTop: "1px solid #dbdbdb" }}>
               <button onClick={() => { const idx = filtered.indexOf(selectedPost); if (idx > 0) { setSelectedPost(filtered[idx - 1]); setSlideIndex(0); } }} disabled={filtered.indexOf(selectedPost) === 0}
                 style={{ background: "none", border: "1px solid #dbdbdb", borderRadius: "99px", padding: "5px 14px", fontSize: "12px", cursor: "pointer", color: "#333", opacity: filtered.indexOf(selectedPost) === 0 ? 0.3 : 1 }}>← Anterior</button>
@@ -168,6 +273,9 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
           </div>
         </div>
       )}
+
+      {/* Click fuera cierra opciones */}
+      {showOptions && <div onClick={() => setShowOptions(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />}
     </>
   );
 }

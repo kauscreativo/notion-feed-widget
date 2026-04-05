@@ -41,10 +41,11 @@ export default async function Home() {
       const formato = props?.Formato?.select?.name ?? "";
       const estado = props?.Estado?.status?.name ?? props?.Estado?.select?.name ?? "";
       const copy = props?.Copy?.rich_text?.[0]?.plain_text ?? "";
+      const fecha = props?.["Fecha de publicación"]?.date?.start ?? "";
       const notaImportante = props?.["Nota Importante"]?.rich_text?.[0]?.plain_text ?? "";
       const pinned = notaImportante === "pin";
 
-      return { id: page.id, nombre, imgUrl, contenido, formato, estado, copy, pinned };
+      return { id: page.id, nombre, imgUrl, contenido, formato, estado, copy, fecha, pinned };
     })
   );
 

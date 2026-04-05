@@ -7,7 +7,7 @@ const databaseId = process.env.NOTION_DATABASE_ID as string;
 async function getPosts() {
   const response = await notion.databases.query({
     database_id: databaseId,
-    sorts: [{ property: "Publish Date", direction: "descending" }],
+    sorts: [{ property: "Fecha de publicación", direction: "descending" }],
     page_size: 30,
     filter: {
       or: [
@@ -24,24 +24,27 @@ export default async function Home() {
 
   const posts = await Promise.all(
     pages.map(async (page: any) => {
-      const attachments = (page.properties?.Attachment as any)?.files ?? [];
-      const file = attachments[0];
+      const props = page.properties as Record<string, any>;
+
+      const portada = props?.Portada?.files ?? [];
+      const file = portada[0];
       let imgUrl: string | null = null;
       if (file?.type === "file") imgUrl = file.file.url;
       else if (file?.type === "external") imgUrl = file.external.url;
 
-      const titleProp = Object.values(page.properties as Record<string, any>).find(
-        (p: any) => p.type === "title"
-      ) as any;
-      const title = titleProp?.title?.[0]?.plain_text ?? "";
-      const formato = (page.properties as any)?.Formato?.select?.name ?? "";
-      const estado =
-        (page.properties as any)?.Estado?.status?.name ??
-        (page.properties as any)?.Estado?.select?.name ?? "";
-      const notaImportante = (page.properties as any)?.["Nota Importante"]?.rich_text?.[0]?.plain_text ?? "";
+      const contenido = (props?.Contenido?.files ?? []).map((f: any) =>
+        f.type === "file" ? f.file.url : f.external?.url ?? null
+      ).filter(Boolean);
+
+      const titleProp = Object.values(props).find((p: any) => p.type === "title") as any;
+      const nombre = titleProp?.title?.[0]?.plain_text ?? "";
+      const formato = props?.Formato?.select?.name ?? "";
+      const estado = props?.Estado?.status?.name ?? props?.Estado?.select?.name ?? "";
+      const copy = props?.Copy?.rich_text?.[0]?.plain_text ?? "";
+      const notaImportante = props?.["Nota Importante"]?.rich_text?.[0]?.plain_text ?? "";
       const pinned = notaImportante === "pin";
 
-      return { id: page.id, title, imgUrl, formato, estado, pinned };
+      return { id: page.id, nombre, imgUrl, contenido, formato, estado, copy, pinned };
     })
   );
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Post = {
   id: string;
@@ -13,26 +14,22 @@ type Post = {
 
 export default function FeedClient({ posts }: { posts: Post[] }) {
   const [filter, setFilter] = useState("todos");
+  const router = useRouter();
 
   const filtered = posts.filter((p) => {
     if (filter === "todos") return true;
     if (filter === "publicado") return p.estado?.toLowerCase().includes("publicad");
-    if (filter === "borrador") return p.estado?.toLowerCase().includes("borrador");
-    if (filter === "programado") return p.estado?.toLowerCase().includes("programad");
     return true;
   });
 
   const filters = [
     { key: "todos", label: "Todos" },
     { key: "publicado", label: "Publicados" },
-    { key: "programado", label: "Programados" },
-    { key: "borrador", label: "Borradores" },
   ];
 
   return (
     <>
-      {/* FILTROS */}
-      <div style={{ display: "flex", gap: "8px", padding: "12px 16px", flexWrap: "wrap", borderBottom: "1px solid #dbdbdb" }}>
+      <div style={{ display: "flex", gap: "8px", padding: "12px 16px", flexWrap: "wrap", borderBottom: "1px solid #dbdbdb", alignItems: "center" }}>
         {filters.map((f) => (
           <button
             key={f.key}
@@ -53,9 +50,8 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
           </button>
         ))}
 
-        {/* REFRESH */}
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => router.refresh()}
           style={{
             marginLeft: "auto",
             padding: "5px 12px",
@@ -65,21 +61,16 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
             color: "#333",
             fontSize: "12px",
             cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
           }}
         >
           ↻ Refresh
         </button>
       </div>
 
-      {/* CONTADOR */}
       <div style={{ padding: "8px 16px", fontSize: "11px", color: "#888" }}>
         {filtered.length} posts
       </div>
 
-      {/* GRID */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "2px" }}>
         {filtered.map((post) => (
           <div key={post.id} style={{ aspectRatio: "4/5", position: "relative", overflow: "hidden", background: "#f0f0f0" }}>
@@ -103,11 +94,6 @@ export default function FeedClient({ posts }: { posts: Post[] }) {
             {post.formato === "Carrusel" && (
               <div style={{ position: "absolute", top: "5px", right: "5px" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="6" width="5" height="12" rx="1"/><rect x="9" y="3" width="6" height="18" rx="1"/><rect x="17" y="6" width="5" height="12" rx="1"/></svg>
-              </div>
-            )}
-            {post.estado?.toLowerCase().includes("borrador") && (
-              <div style={{ position: "absolute", bottom: "5px", left: "5px", background: "rgba(0,0,0,0.55)", color: "white", fontSize: "9px", padding: "2px 6px", borderRadius: "3px" }}>
-                Borrador
               </div>
             )}
           </div>

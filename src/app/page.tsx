@@ -8,7 +8,7 @@ async function getPosts() {
   const response = await notion.databases.query({
     database_id: databaseId,
     sorts: [{ property: "Publish Date", direction: "descending" }],
-    page_size: 60,
+    page_size: 30,
     filter: {
       or: [
         { property: "Formato", select: { equals: "Carrusel" } },
